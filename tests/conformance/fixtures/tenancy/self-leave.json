@@ -1,0 +1,109 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "self_leave",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#self-leave",
+  "description": "Self-leave preconditions: sole-owner protection, owner-with-transfer atomicity, and non-owner self-leave succeeds.",
+  "tests": [
+    {
+      "id": "self_leave.sole_owner.requires_transfer",
+      "description": "A sole active owner self-leaving without transferTo MUST raise SoleOwnerError. The org cannot be left without an active owner.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": {
+            "owner_mem_id": "owner_membership.id"
+          }
+        },
+        {
+          "op": "self_leave",
+          "input": { "mem_id": "{owner_mem_id}" },
+          "expected": { "error": "SoleOwnerError" }
+        }
+      ]
+    },
+    {
+      "id": "self_leave.sole_owner.with_transfer.succeeds",
+      "description": "A sole active owner self-leaving WITH transferTo MUST atomically promote the target to owner THEN revoke the donor's membership. Net state: target is the new owner, donor's mem is revoked, target has the owner tuple, donor has no tuples.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": {
+            "org_id": "org.id",
+            "alice_mem_id": "owner_membership.id"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          }
+        },
+        {
+          "op": "self_leave",
+          "input": {
+            "mem_id": "{alice_mem_id}",
+            "transfer_to": "{bob}"
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{alice}",
+            "relations": []
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{bob}",
+            "relations": ["owner"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "self_leave.non_owner.succeeds",
+      "description": "A non-owner member self-leaving MUST succeed unconditionally; sole-owner protection only applies when the leaver is the sole active owner.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          },
+          "captures": { "bob_mem_id": "id" }
+        },
+        {
+          "op": "self_leave",
+          "input": { "mem_id": "{bob_mem_id}" }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{bob}",
+            "relations": []
+          }
+        }
+      ]
+    }
+  ]
+}

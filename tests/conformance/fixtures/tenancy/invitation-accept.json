@@ -1,0 +1,129 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "accept_invitation",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#invitation-acceptance",
+  "description": "Invitation acceptance is atomic: user creation, membership insert, member tuple, and pre-tuple expansion all happen in one transition; non-pending invitations cannot be accepted.",
+  "tests": [
+    {
+      "id": "accept_invitation.atomic_pretuple_materialization",
+      "description": "Accepting an invitation with pre-tuples MUST atomically create the membership AND materialize every pre-tuple as a real tuple keyed on the accepting user. After acceptance, the new user has exactly the membership tuple plus one tuple per pre-tuple.",
+      "users": ["alice", "newbie"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "newbie@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400,
+            "pre_tuples": [
+              {
+                "relation": "editor",
+                "object_type": "proj",
+                "object_id": "0190f2a8-1b3c-7abc-8123-aaaaaaaaaaaa"
+              }
+            ]
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{newbie}"
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{newbie}",
+            "relations": ["editor", "member"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "accept_invitation.already_accepted.rejected",
+      "description": "Accepting an invitation that is already in a terminal status MUST raise InvitationNotPendingError. The invitation lifecycle has only one non-terminal state (pending).",
+      "users": ["alice", "newbie"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "newbie@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{newbie}"
+          }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{newbie}"
+          },
+          "expected": { "error": "InvitationNotPendingError" }
+        }
+      ]
+    },
+    {
+      "id": "accept_invitation.declined_then_accept.rejected",
+      "description": "An invitation that has been declined MUST NOT be acceptable. Declining is terminal.",
+      "users": ["alice", "newbie"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "newbie@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "decline_invitation",
+          "input": { "inv_id": "{inv_id}" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{newbie}"
+          },
+          "expected": { "error": "InvitationNotPendingError" }
+        }
+      ]
+    }
+  ]
+}

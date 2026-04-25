@@ -1,0 +1,83 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "transfer_ownership",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#transfer-ownership",
+  "description": "Ownership transfer atomically swaps owner roles and tuples; self-transfer is rejected.",
+  "tests": [
+    {
+      "id": "transfer_ownership.atomic_swap",
+      "description": "Transfer MUST atomically promote target to owner and demote donor to member. Both tuples swap in a single transaction; intermediate states with two owners or zero owners MUST NOT be observable.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": {
+            "org_id": "org.id",
+            "alice_mem_id": "owner_membership.id"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          },
+          "captures": { "bob_mem_id": "id" }
+        },
+        {
+          "op": "transfer_ownership",
+          "input": {
+            "org_id": "{org_id}",
+            "from_mem_id": "{alice_mem_id}",
+            "to_mem_id": "{bob_mem_id}"
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{alice}",
+            "relations": ["member"]
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{bob}",
+            "relations": ["owner"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "transfer_ownership.self_transfer.rejected",
+      "description": "Transfer where from and to point to the same user MUST raise PreconditionError. Self-transfer would either be a no-op or briefly create two owners; the spec rejects both.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": {
+            "org_id": "org.id",
+            "alice_mem_id": "owner_membership.id"
+          }
+        },
+        {
+          "op": "transfer_ownership",
+          "input": {
+            "org_id": "{org_id}",
+            "from_mem_id": "{alice_mem_id}",
+            "to_mem_id": "{alice_mem_id}"
+          },
+          "expected": { "error": "PreconditionError" }
+        }
+      ]
+    }
+  ]
+}

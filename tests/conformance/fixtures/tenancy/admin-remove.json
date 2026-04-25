@@ -1,0 +1,156 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "admin_remove",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#admin-remove",
+  "description": "Role hierarchy on admin_remove: higher rank removes lower or equal rank; owner removal requires transferOwnership; non-admins are forbidden.",
+  "tests": [
+    {
+      "id": "admin_remove.admin_removes_member.allowed",
+      "description": "An admin (rank 3) MUST be permitted to remove a member (rank 2). The target's mem flips to revoked with removed_by set to the admin's usr_id.",
+      "users": ["alice", "bob", "carol"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "admin"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{carol}",
+            "role": "member"
+          },
+          "captures": { "carol_mem_id": "id" }
+        },
+        {
+          "op": "admin_remove",
+          "input": {
+            "mem_id": "{carol_mem_id}",
+            "admin_usr_id": "{bob}"
+          },
+          "captures": { "removed_by": "removed_by" }
+        },
+        {
+          "op": "assert_equal",
+          "input": {
+            "actual": "{removed_by}",
+            "expected": "{bob}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin_remove.admin_removes_peer_admin.allowed",
+      "description": "An admin MUST be permitted to remove a peer admin. Per spec: 'higher rank removes lower or equal rank'; equal rank is permitted. Owners remain the only undeposable role.",
+      "users": ["alice", "bob", "carol"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "admin"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{carol}",
+            "role": "admin"
+          },
+          "captures": { "carol_mem_id": "id" }
+        },
+        {
+          "op": "admin_remove",
+          "input": {
+            "mem_id": "{carol_mem_id}",
+            "admin_usr_id": "{bob}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "admin_remove.admin_removes_owner.rejected",
+      "description": "An admin attempting to remove the owner MUST raise RoleHierarchyError. Owner removal requires transferOwnership; admin_remove never demotes an owner.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "alice_mem_id": "owner_membership.id", "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "admin"
+          }
+        },
+        {
+          "op": "admin_remove",
+          "input": {
+            "mem_id": "{alice_mem_id}",
+            "admin_usr_id": "{bob}"
+          },
+          "expected": { "error": "RoleHierarchyError" }
+        }
+      ]
+    },
+    {
+      "id": "admin_remove.member_attempts_remove.forbidden",
+      "description": "A non-admin (member or guest) attempting admin_remove MUST raise ForbiddenError. Only owner and admin roles may invoke admin_remove.",
+      "users": ["alice", "bob", "carol"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{carol}",
+            "role": "member"
+          },
+          "captures": { "carol_mem_id": "id" }
+        },
+        {
+          "op": "admin_remove",
+          "input": {
+            "mem_id": "{carol_mem_id}",
+            "admin_usr_id": "{bob}"
+          },
+          "expected": { "error": "ForbiddenError" }
+        }
+      ]
+    }
+  ]
+}

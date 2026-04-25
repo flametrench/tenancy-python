@@ -1,0 +1,103 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "change_role",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#role-changes",
+  "description": "Role changes are revoke-and-re-add with replaces chain; sole-owner demotion is blocked.",
+  "tests": [
+    {
+      "id": "change_role.sole_owner_demotion.blocked",
+      "description": "Demoting the sole active owner MUST raise SoleOwnerError. The mem_/tup_ duality requires at least one active owner per org at all times.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "owner_mem_id": "owner_membership.id" }
+        },
+        {
+          "op": "change_role",
+          "input": {
+            "mem_id": "{owner_mem_id}",
+            "new_role": "member"
+          },
+          "expected": { "error": "SoleOwnerError" }
+        }
+      ]
+    },
+    {
+      "id": "change_role.swaps_tuple_atomically",
+      "description": "Promoting a member to admin MUST revoke the old (usr, member, org) tuple and insert a new (usr, admin, org) tuple. After the change the subject has exactly one active relation: admin.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          },
+          "captures": { "bob_mem_id": "id" }
+        },
+        {
+          "op": "change_role",
+          "input": {
+            "mem_id": "{bob_mem_id}",
+            "new_role": "admin"
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{bob}",
+            "relations": ["admin"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "change_role.replaces_chain.preserved",
+      "description": "After a role change, the new membership's `replaces` field MUST point to the old membership id. The old membership stays in the store with status=revoked for audit.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          },
+          "captures": { "bob_mem_id": "id" }
+        },
+        {
+          "op": "change_role",
+          "input": {
+            "mem_id": "{bob_mem_id}",
+            "new_role": "admin"
+          },
+          "captures": { "new_mem_id": "id", "new_replaces": "replaces" }
+        },
+        {
+          "op": "assert_equal",
+          "input": {
+            "actual": "{new_replaces}",
+            "expected": "{bob_mem_id}"
+          }
+        }
+      ]
+    }
+  ]
+}
