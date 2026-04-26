@@ -5,7 +5,7 @@
   "operation": "accept_invitation",
   "conformance_level": "MUST",
   "spec_section": "docs/tenancy.md#invitation-acceptance",
-  "description": "Invitation acceptance is atomic: user creation, membership insert, member tuple, and pre-tuple expansion all happen in one transition; non-pending invitations cannot be accepted.",
+  "description": "Invitation acceptance is atomic: user creation, membership insert, member tuple, and pre-tuple expansion all happen in one transition; non-pending invitations cannot be accepted. As of v0.1.x patch (ADR 0009), every existing-user accept MUST also pass `accepting_identifier` matching `invitation.identifier`; tests in this fixture supply that matching value.",
   "tests": [
     {
       "id": "accept_invitation.atomic_pretuple_materialization",
@@ -39,7 +39,8 @@
           "op": "accept_invitation",
           "input": {
             "inv_id": "{inv_id}",
-            "as_usr_id": "{newbie}"
+            "as_usr_id": "{newbie}",
+            "accepting_identifier": "newbie@example.com"
           }
         },
         {
@@ -77,14 +78,16 @@
           "op": "accept_invitation",
           "input": {
             "inv_id": "{inv_id}",
-            "as_usr_id": "{newbie}"
+            "as_usr_id": "{newbie}",
+            "accepting_identifier": "newbie@example.com"
           }
         },
         {
           "op": "accept_invitation",
           "input": {
             "inv_id": "{inv_id}",
-            "as_usr_id": "{newbie}"
+            "as_usr_id": "{newbie}",
+            "accepting_identifier": "newbie@example.com"
           },
           "expected": { "error": "InvitationNotPendingError" }
         }
@@ -119,7 +122,8 @@
           "op": "accept_invitation",
           "input": {
             "inv_id": "{inv_id}",
-            "as_usr_id": "{newbie}"
+            "as_usr_id": "{newbie}",
+            "accepting_identifier": "newbie@example.com"
           },
           "expected": { "error": "InvitationNotPendingError" }
         }

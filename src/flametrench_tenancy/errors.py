@@ -79,3 +79,38 @@ class PreconditionError(TenancyError):
     def __init__(self, message: str, reason: str) -> None:
         super().__init__(message, code=f"precondition.{reason}")
         self.reason = reason
+
+
+class IdentifierBindingRequiredError(PreconditionError):
+    """``acceptInvitation`` was called with ``as_usr_id`` but no ``accepting_identifier``.
+
+    Per ADR 0009, the SDK fails closed: callers MUST supply
+    ``accepting_identifier`` whenever they assert an existing
+    ``as_usr_id``. The mint-new-user path (``as_usr_id is None``) does
+    not need this parameter.
+    """
+
+    def __init__(
+        self,
+        message: str = "accept_invitation requires accepting_identifier when as_usr_id is provided",
+    ) -> None:
+        super().__init__(message, reason="identifier_binding_required")
+
+
+class IdentifierMismatchError(PreconditionError):
+    """The supplied ``accepting_identifier`` does not match ``invitation.identifier``.
+
+    Per ADR 0009, this byte-equality check is the SDK's contribution to
+    closing the privilege-escalation primitive in spec#5: an attacker
+    substituting a foreign ``usr_id`` will fail to also produce a
+    matching identifier sourced from the authenticated session.
+    """
+
+    def __init__(self, accepting_identifier: str, invitation_identifier: str) -> None:
+        super().__init__(
+            f"accepting_identifier {accepting_identifier!r} does not match "
+            f"invitation.identifier {invitation_identifier!r}",
+            reason="identifier_mismatch",
+        )
+        self.accepting_identifier = accepting_identifier
+        self.invitation_identifier = invitation_identifier

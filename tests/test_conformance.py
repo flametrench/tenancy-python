@@ -38,6 +38,8 @@ from flametrench_tenancy import (
     AlreadyTerminalError,
     DuplicateMembershipError,
     ForbiddenError,
+    IdentifierBindingRequiredError,
+    IdentifierMismatchError,
     InMemoryTenancyStore,
     InvitationExpiredError,
     InvitationNotPendingError,
@@ -70,6 +72,8 @@ _ERROR_CLASSES: dict[str, type[Exception]] = {
     "AlreadyTerminalError": AlreadyTerminalError,
     "NotFoundError": NotFoundError,
     "TenancyError": TenancyError,
+    "IdentifierBindingRequiredError": IdentifierBindingRequiredError,
+    "IdentifierMismatchError": IdentifierMismatchError,
 }
 
 
@@ -170,7 +174,11 @@ def _invoke_op(
         )
 
     if op == "accept_invitation":
-        return store.accept_invitation(args["inv_id"], as_usr_id=args.get("as_usr_id"))
+        return store.accept_invitation(
+            args["inv_id"],
+            as_usr_id=args.get("as_usr_id"),
+            accepting_identifier=args.get("accepting_identifier"),
+        )
 
     if op == "decline_invitation":
         return store.decline_invitation(args["inv_id"], as_usr_id=args.get("as_usr_id"))
@@ -203,6 +211,14 @@ def _invoke_op(
     if op == "assert_equal":
         assert args["actual"] == args["expected"], (
             f"assert_equal: expected {args['expected']!r}, got {args['actual']!r}"
+        )
+        return None
+
+    if op == "assert_invitation_status":
+        inv = store.get_invitation(args["inv_id"])
+        assert inv.status.value == args["expected_status"], (
+            f"assert_invitation_status: expected {args['expected_status']!r}, "
+            f"got {inv.status.value!r}"
         )
         return None
 
@@ -280,4 +296,14 @@ def test_admin_remove_conformance(test_case: dict[str, Any]) -> None:
     "test_case", _collect_tests("tenancy/invitation-accept.json")
 )
 def test_accept_invitation_conformance(test_case: dict[str, Any]) -> None:
+    _run_test(test_case)
+
+
+# ─── tenancy.accept_invitation — identifier binding (ADR 0009) ───
+
+
+@pytest.mark.parametrize(
+    "test_case", _collect_tests("tenancy/invitation-accept-binding.json")
+)
+def test_accept_invitation_binding_conformance(test_case: dict[str, Any]) -> None:
     _run_test(test_case)

@@ -22,6 +22,8 @@ from .errors import (
     AlreadyTerminalError,
     DuplicateMembershipError,
     ForbiddenError,
+    IdentifierBindingRequiredError,
+    IdentifierMismatchError,
     InvitationExpiredError,
     InvitationNotPendingError,
     NotFoundError,
@@ -503,7 +505,11 @@ class InMemoryTenancyStore:
         return self._paginate(all_, cursor, limit)
 
     def accept_invitation(
-        self, inv_id: str, *, as_usr_id: str | None = None
+        self,
+        inv_id: str,
+        *,
+        as_usr_id: str | None = None,
+        accepting_identifier: str | None = None,
     ) -> AcceptInvitationResult:
         inv = self.get_invitation(inv_id)
         if inv.status != InvitationStatus.PENDING:
@@ -515,6 +521,12 @@ class InMemoryTenancyStore:
             raise InvitationExpiredError(
                 f"Invitation {inv_id} expired at {inv.expires_at.isoformat()}"
             )
+        # ADR 0009: existing-user accept MUST supply a matching identifier.
+        if as_usr_id is not None:
+            if accepting_identifier is None:
+                raise IdentifierBindingRequiredError()
+            if accepting_identifier != inv.identifier:
+                raise IdentifierMismatchError(accepting_identifier, inv.identifier)
         usr_id = as_usr_id if as_usr_id is not None else generate("usr")
         if self._find_active_membership(usr_id, inv.org_id) is not None:
             raise DuplicateMembershipError(

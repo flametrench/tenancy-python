@@ -278,6 +278,65 @@ class TestInvitations:
         with pytest.raises(InvitationExpiredError):
             store.accept_invitation(inv.id)
 
+    def test_accept_invitation_with_as_usr_id_requires_accepting_identifier(
+        self, store: InMemoryTenancyStore, alice: str, bob: str
+    ) -> None:
+        # ADR 0009: existing-user accept without accepting_identifier fails closed.
+        from flametrench_tenancy import IdentifierBindingRequiredError
+
+        result = store.create_org(alice)
+        inv = store.create_invitation(
+            org_id=result.org.id,
+            identifier="bob@example.com",
+            role=Role.MEMBER,
+            invited_by=alice,
+            expires_at=_future(),
+        )
+        with pytest.raises(IdentifierBindingRequiredError):
+            store.accept_invitation(inv.id, as_usr_id=bob)
+
+    def test_accept_invitation_rejects_mismatched_accepting_identifier(
+        self, store: InMemoryTenancyStore, alice: str, bob: str
+    ) -> None:
+        # ADR 0009: this is the privilege-escalation primitive closer.
+        from flametrench_tenancy import IdentifierMismatchError
+
+        result = store.create_org(alice)
+        inv = store.create_invitation(
+            org_id=result.org.id,
+            identifier="victim@example.org",
+            role=Role.OWNER,
+            invited_by=alice,
+            expires_at=_future(),
+        )
+        with pytest.raises(IdentifierMismatchError) as info:
+            store.accept_invitation(
+                inv.id,
+                as_usr_id=bob,
+                accepting_identifier="attacker@example.com",
+            )
+        assert info.value.accepting_identifier == "attacker@example.com"
+        assert info.value.invitation_identifier == "victim@example.org"
+
+    def test_accept_invitation_with_matching_accepting_identifier_succeeds(
+        self, store: InMemoryTenancyStore, alice: str, bob: str
+    ) -> None:
+        result = store.create_org(alice)
+        inv = store.create_invitation(
+            org_id=result.org.id,
+            identifier="bob@example.com",
+            role=Role.MEMBER,
+            invited_by=alice,
+            expires_at=_future(),
+        )
+        out = store.accept_invitation(
+            inv.id,
+            as_usr_id=bob,
+            accepting_identifier="bob@example.com",
+        )
+        assert out.membership.usr_id == bob
+        assert out.invitation.status == InvitationStatus.ACCEPTED
+
     def test_decline_terminal_then_redecline_raises(
         self, store: InMemoryTenancyStore, alice: str
     ) -> None:

@@ -100,8 +100,27 @@ class TenancyStore(Protocol):
     ) -> Page[Invitation]: ...
 
     def accept_invitation(
-        self, inv_id: str, *, as_usr_id: str | None = None
-    ) -> AcceptInvitationResult: ...
+        self,
+        inv_id: str,
+        *,
+        as_usr_id: str | None = None,
+        accepting_identifier: str | None = None,
+    ) -> AcceptInvitationResult:
+        """Accept a pending invitation.
+
+        Per ADR 0009, identifier binding is enforced inside the SDK:
+
+        - If ``as_usr_id`` is provided, ``accepting_identifier`` is REQUIRED.
+          The SDK byte-compares it to ``invitation.identifier``;
+          mismatch raises :class:`IdentifierMismatchError`, omission
+          raises :class:`IdentifierBindingRequiredError`.
+        - If ``as_usr_id is None`` (mint-new-user path), the SDK creates
+          a fresh ``usr_`` and ``accepting_identifier`` is not consulted.
+
+        The host MUST source ``accepting_identifier`` from the
+        authenticated session context, NOT from a request body.
+        """
+        ...
 
     def decline_invitation(
         self, inv_id: str, *, as_usr_id: str | None = None

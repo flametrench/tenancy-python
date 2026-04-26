@@ -1,0 +1,164 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "accept_invitation",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#identifier-binding-normative",
+  "description": "Invitation-accept identifier binding per ADR 0009. The SDK MUST byte-compare the caller-supplied `accepting_identifier` to `invitation.identifier` when an existing-user `as_usr_id` is provided; mismatch raises IdentifierMismatchError, omission raises IdentifierBindingRequiredError. The mint-new-user path (`as_usr_id = null`) does not require `accepting_identifier`. Closes a privilege-escalation primitive reported in spec#5.",
+  "tests": [
+    {
+      "id": "accept_invitation.binding.match_accepted",
+      "description": "Supplying `as_usr_id` together with a matching `accepting_identifier` MUST succeed and create the membership normally. The byte-equality check is the only thing the SDK enforces; the host's auth layer is responsible for sourcing `accepting_identifier` from the bearer token, NOT from request body.",
+      "users": ["alice", "newbie"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "newbie@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{newbie}",
+            "accepting_identifier": "newbie@example.com"
+          }
+        },
+        {
+          "op": "assert_subject_relations",
+          "input": {
+            "subject_type": "usr",
+            "subject_id": "{newbie}",
+            "relations": ["member"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "accept_invitation.binding.mismatch_rejected",
+      "description": "Supplying `as_usr_id` with an `accepting_identifier` that does NOT match `invitation.identifier` MUST raise IdentifierMismatchError. This is the test case that closes the privilege-escalation primitive: an attacker substituting their own usr_id for an admin-targeted invitation will not match the invitation's identifier and is rejected.",
+      "users": ["alice", "attacker"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "victim@example.org",
+            "role": "owner",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{attacker}",
+            "accepting_identifier": "attacker@example.com"
+          },
+          "expected": { "error": "IdentifierMismatchError" }
+        },
+        {
+          "op": "assert_invitation_status",
+          "input": {
+            "inv_id": "{inv_id}",
+            "expected_status": "pending"
+          }
+        }
+      ]
+    },
+    {
+      "id": "accept_invitation.binding.missing_param_rejected",
+      "description": "Supplying `as_usr_id` without `accepting_identifier` MUST raise IdentifierBindingRequiredError. The SDK fails closed: it does NOT silently fall back to the pre-ADR-0009 behavior of accepting any usr_id.",
+      "users": ["alice", "newbie"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "newbie@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "as_usr_id": "{newbie}"
+          },
+          "expected": { "error": "IdentifierBindingRequiredError" }
+        },
+        {
+          "op": "assert_invitation_status",
+          "input": {
+            "inv_id": "{inv_id}",
+            "expected_status": "pending"
+          }
+        }
+      ]
+    },
+    {
+      "id": "accept_invitation.binding.mint_new_user_no_param_accepted",
+      "description": "The mint-new-user path (`as_usr_id = null`) does NOT require `accepting_identifier`. The SDK creates a fresh `usr_` and the host wires the corresponding credential separately at the Identity layer; the binding is enforced post-hoc when that credential is created with `identifier = invitation.identifier`.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "newbie@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": { "inv_id": "id" }
+        },
+        {
+          "op": "accept_invitation",
+          "input": {
+            "inv_id": "{inv_id}"
+          },
+          "captures": { "minted_usr_id": "membership.usr_id" }
+        },
+        {
+          "op": "assert_invitation_status",
+          "input": {
+            "inv_id": "{inv_id}",
+            "expected_status": "accepted"
+          }
+        }
+      ]
+    }
+  ]
+}
