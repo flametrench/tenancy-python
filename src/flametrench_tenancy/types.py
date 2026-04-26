@@ -75,6 +75,11 @@ class Organization:
     status: Status
     created_at: datetime
     updated_at: datetime
+    # v0.2 (ADR 0011) — optional metadata fields. Default to None for
+    # backwards compatibility with v0.1 callers that constructed
+    # Organization positionally without name/slug.
+    name: str | None = None
+    slug: str | None = None
 
     def with_status(self, status: Status, updated_at: datetime) -> "Organization":
         return Organization(
@@ -82,6 +87,8 @@ class Organization:
             status=status,
             created_at=self.created_at,
             updated_at=updated_at,
+            name=self.name,
+            slug=self.slug,
         )
 
 

@@ -38,8 +38,29 @@ from .types import (
 @runtime_checkable
 class TenancyStore(Protocol):
     # ─── Organizations ───
-    def create_org(self, creator: str) -> CreateOrgResult: ...
+    def create_org(
+        self,
+        creator: str,
+        *,
+        name: str | None = None,
+        slug: str | None = None,
+    ) -> CreateOrgResult: ...
     def get_org(self, org_id: str) -> Organization: ...
+    def update_org(
+        self,
+        org_id: str,
+        *,
+        name: object = ...,
+        slug: object = ...,
+    ) -> Organization:
+        """ADR 0011 partial update of v0.2 metadata fields.
+
+        Omitted parameter (sentinel) means "don't change"; explicit
+        ``None`` means "set to null." Implementations export the
+        sentinel as a module-level constant for callers that need to
+        forward partial inputs.
+        """
+        ...
     def suspend_org(self, org_id: str) -> Organization: ...
     def reinstate_org(self, org_id: str) -> Organization: ...
     def revoke_org(self, org_id: str) -> Organization: ...

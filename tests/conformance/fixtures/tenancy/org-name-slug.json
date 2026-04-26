@@ -1,0 +1,227 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.2.0",
+  "capability": "tenancy",
+  "operation": "update_org",
+  "conformance_level": "MUST",
+  "spec_section": "decisions/0011-org-display-name-slug.md",
+  "description": "v0.2 (ADR 0011) adds optional `name` and `slug` fields to Organization plus an `update_org` operation. This fixture exercises round-trip through createOrg, partial update semantics (omitted vs explicit null), slug uniqueness violations, and slug pattern validation. Closes spec#6.",
+  "tests": [
+    {
+      "id": "org_name_slug.create_with_both",
+      "description": "createOrg with both name and slug stores them and returns them on getOrg.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}",
+            "name": "Acme Inc",
+            "slug": "acme"
+          },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "assert_org_fields",
+          "input": {
+            "org_id": "{org_id}",
+            "expected_name": "Acme Inc",
+            "expected_slug": "acme"
+          }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.create_without_args",
+      "description": "createOrg without name or slug stores both as null. Backwards-compatible with v0.1 callers.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "assert_org_fields",
+          "input": {
+            "org_id": "{org_id}",
+            "expected_name": null,
+            "expected_slug": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.update_partial",
+      "description": "update_org with only `name` set leaves `slug` untouched. The omitted-vs-null distinction matters: omitting slug means 'don't change', not 'set to null'.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "name": "Old", "slug": "old" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "update_org",
+          "input": { "org_id": "{org_id}", "name": "New" }
+        },
+        {
+          "op": "assert_org_fields",
+          "input": {
+            "org_id": "{org_id}",
+            "expected_name": "New",
+            "expected_slug": "old"
+          }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.update_clear_to_null",
+      "description": "update_org with `slug: null` explicitly clears the slug. After clearing, another org may claim it.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "free-me" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "update_org",
+          "input": { "org_id": "{org_id}", "slug": null }
+        },
+        {
+          "op": "assert_org_fields",
+          "input": {
+            "org_id": "{org_id}",
+            "expected_slug": null
+          }
+        },
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "free-me" }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.slug_conflict_at_create",
+      "description": "createOrg with a slug already held by another active org MUST raise OrgSlugConflictError.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "taken" }
+        },
+        {
+          "op": "create_org",
+          "input": { "creator": "{bob}", "slug": "taken" },
+          "expected": { "error": "OrgSlugConflictError" }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.slug_conflict_at_update",
+      "description": "update_org with a slug already held by another active org MUST raise OrgSlugConflictError. The original org's slug remains unchanged.",
+      "users": ["alice", "bob"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "alpha" },
+          "captures": { "alice_org_id": "org.id" }
+        },
+        {
+          "op": "create_org",
+          "input": { "creator": "{bob}", "slug": "beta" },
+          "captures": { "bob_org_id": "org.id" }
+        },
+        {
+          "op": "update_org",
+          "input": { "org_id": "{bob_org_id}", "slug": "alpha" },
+          "expected": { "error": "OrgSlugConflictError" }
+        },
+        {
+          "op": "assert_org_fields",
+          "input": {
+            "org_id": "{bob_org_id}",
+            "expected_slug": "beta"
+          }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.slug_pattern_uppercase_rejected",
+      "description": "Slug with uppercase chars MUST be rejected. Spec pattern is lowercase ASCII + digits + hyphens, no leading/trailing hyphen.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "AcmeInc" },
+          "expected": { "error": "PreconditionError" }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.slug_pattern_leading_hyphen_rejected",
+      "description": "Slug starting with a hyphen MUST be rejected.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "-acme" },
+          "expected": { "error": "PreconditionError" }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.slug_pattern_too_long_rejected",
+      "description": "Slug longer than 63 chars MUST be rejected (DNS-label cap).",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}",
+            "slug": "a23456789012345678901234567890123456789012345678901234567890-toolong"
+          },
+          "expected": { "error": "PreconditionError" }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.slug_pattern_minimal_accepted",
+      "description": "Single-char slug (the minimum length) MUST be accepted.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "slug": "a" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "assert_org_fields",
+          "input": { "org_id": "{org_id}", "expected_slug": "a" }
+        }
+      ]
+    },
+    {
+      "id": "org_name_slug.update_revoked_org_rejected",
+      "description": "update_org against a revoked org MUST raise AlreadyTerminalError. Revoked is terminal; metadata edits don't reach back.",
+      "users": ["alice"],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": { "creator": "{alice}", "name": "RIP" },
+          "captures": { "org_id": "org.id" }
+        },
+        {
+          "op": "revoke_org",
+          "input": { "org_id": "{org_id}" }
+        },
+        {
+          "op": "update_org",
+          "input": { "org_id": "{org_id}", "name": "Whatever" },
+          "expected": { "error": "AlreadyTerminalError" }
+        }
+      ]
+    }
+  ]
+}

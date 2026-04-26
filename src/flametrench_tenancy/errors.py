@@ -97,6 +97,21 @@ class IdentifierBindingRequiredError(PreconditionError):
         super().__init__(message, reason="identifier_binding_required")
 
 
+class OrgSlugConflictError(TenancyError):
+    """The supplied org slug is already in use by another active org.
+
+    Per ADR 0011, slugs are globally unique within a deployment when
+    set. NULL slugs are not unique-constrained.
+    """
+
+    def __init__(self, slug: str) -> None:
+        super().__init__(
+            f"Org slug {slug!r} is already in use",
+            code="conflict.org_slug",
+        )
+        self.slug = slug
+
+
 class IdentifierMismatchError(PreconditionError):
     """The supplied ``accepting_identifier`` does not match ``invitation.identifier``.
 

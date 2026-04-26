@@ -13,6 +13,7 @@ Behaviorally spec-conformant for every transition:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -27,10 +28,34 @@ from .errors import (
     InvitationExpiredError,
     InvitationNotPendingError,
     NotFoundError,
+    OrgSlugConflictError,
     PreconditionError,
     RoleHierarchyError,
     SoleOwnerError,
 )
+
+
+# ADR 0011: DNS-label-style slug pattern. 1-63 lowercase ASCII chars +
+# digits + hyphens, no leading/trailing hyphen.
+_SLUG_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+class _Unset:
+    """Sentinel used by ``update_org`` to distinguish "don't change"
+    from an explicit "set to None"."""
+
+    _instance: "_Unset | None" = None
+
+    def __new__(cls) -> "_Unset":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "_UNSET"
+
+
+_UNSET = _Unset()
 from .types import (
     AcceptInvitationResult,
     CreateOrgResult,
@@ -140,13 +165,24 @@ class InMemoryTenancyStore:
 
     # ─── Organizations ───
 
-    def create_org(self, creator: str) -> CreateOrgResult:
+    def create_org(
+        self,
+        creator: str,
+        *,
+        name: str | None = None,
+        slug: str | None = None,
+    ) -> CreateOrgResult:
+        if slug is not None:
+            self._validate_slug(slug)
+            self._enforce_slug_unique(slug, exclude_org_id=None)
         now = self._now()
         org = Organization(
             id=generate("org"),
             status=Status.ACTIVE,
             created_at=now,
             updated_at=now,
+            name=name,
+            slug=slug,
         )
         owner_membership = Membership(
             id=generate("mem"),
@@ -167,6 +203,64 @@ class InMemoryTenancyStore:
 
     def get_org(self, org_id: str) -> Organization:
         return self._require_org(org_id)
+
+    def update_org(
+        self,
+        org_id: str,
+        *,
+        name: str | None | _Unset = _UNSET,
+        slug: str | None | _Unset = _UNSET,
+    ) -> Organization:
+        """Partial update of v0.2 metadata fields.
+
+        ADR 0011 semantics: an omitted parameter (sentinel ``_UNSET``)
+        means "don't change"; an explicit ``None`` means "set to null."
+        Returns the updated org. Raises:
+
+        - :class:`OrgSlugConflictError` if ``slug`` collides with another
+          active org's slug.
+        - :class:`AlreadyTerminalError` if the org is revoked.
+        - :class:`PreconditionError` if ``slug`` is set but does not match
+          the spec pattern.
+        """
+        org = self._require_org(org_id)
+        if org.status == Status.REVOKED:
+            raise AlreadyTerminalError(
+                f"Org {org_id} is revoked; cannot update"
+            )
+        new_name = org.name if isinstance(name, _Unset) else name
+        new_slug = org.slug if isinstance(slug, _Unset) else slug
+        if not isinstance(slug, _Unset) and new_slug is not None:
+            self._validate_slug(new_slug)
+            self._enforce_slug_unique(new_slug, exclude_org_id=org_id)
+        updated = Organization(
+            id=org.id,
+            status=org.status,
+            created_at=org.created_at,
+            updated_at=self._now(),
+            name=new_name,
+            slug=new_slug,
+        )
+        self._orgs[org_id] = updated
+        return updated
+
+    def _validate_slug(self, slug: str) -> None:
+        if _SLUG_PATTERN.fullmatch(slug) is None:
+            raise PreconditionError(
+                f"Slug {slug!r} does not match the spec pattern "
+                f"(DNS-label-style: 1-63 lowercase ASCII chars or digits "
+                f"or hyphens, no leading/trailing hyphen)",
+                reason="org_slug_format",
+            )
+
+    def _enforce_slug_unique(
+        self, slug: str, *, exclude_org_id: str | None
+    ) -> None:
+        for existing in self._orgs.values():
+            if existing.id == exclude_org_id:
+                continue
+            if existing.slug == slug and existing.status != Status.REVOKED:
+                raise OrgSlugConflictError(slug)
 
     def _transition_org(self, org_id: str, to: Status) -> Organization:
         org = self._require_org(org_id)

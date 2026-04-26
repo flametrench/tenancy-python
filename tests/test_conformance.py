@@ -44,6 +44,7 @@ from flametrench_tenancy import (
     InvitationExpiredError,
     InvitationNotPendingError,
     NotFoundError,
+    OrgSlugConflictError,
     PreTuple,
     PreconditionError,
     Role,
@@ -74,6 +75,7 @@ _ERROR_CLASSES: dict[str, type[Exception]] = {
     "TenancyError": TenancyError,
     "IdentifierBindingRequiredError": IdentifierBindingRequiredError,
     "IdentifierMismatchError": IdentifierMismatchError,
+    "OrgSlugConflictError": OrgSlugConflictError,
 }
 
 
@@ -131,7 +133,32 @@ def _invoke_op(
 ) -> Any:
     """Dispatch a fixture op name to the matching SDK or harness method."""
     if op == "create_org":
-        return store.create_org(args["creator"])
+        kwargs = {}
+        if "name" in args:
+            kwargs["name"] = args["name"]
+        if "slug" in args:
+            kwargs["slug"] = args["slug"]
+        return store.create_org(args["creator"], **kwargs)
+
+    if op == "update_org":
+        kwargs = {}
+        if "name" in args:
+            kwargs["name"] = args["name"]
+        if "slug" in args:
+            kwargs["slug"] = args["slug"]
+        return store.update_org(args["org_id"], **kwargs)
+
+    if op == "assert_org_fields":
+        org = store.get_org(args["org_id"])
+        if "expected_name" in args:
+            assert org.name == args["expected_name"], (
+                f"assert_org_fields: expected name={args['expected_name']!r}, got {org.name!r}"
+            )
+        if "expected_slug" in args:
+            assert org.slug == args["expected_slug"], (
+                f"assert_org_fields: expected slug={args['expected_slug']!r}, got {org.slug!r}"
+            )
+        return None
 
     if op == "add_member":
         return store.add_member(
@@ -306,4 +333,14 @@ def test_accept_invitation_conformance(test_case: dict[str, Any]) -> None:
     "test_case", _collect_tests("tenancy/invitation-accept-binding.json")
 )
 def test_accept_invitation_binding_conformance(test_case: dict[str, Any]) -> None:
+    _run_test(test_case)
+
+
+# ─── tenancy.update_org — org name/slug (ADR 0011) ───
+
+
+@pytest.mark.parametrize(
+    "test_case", _collect_tests("tenancy/org-name-slug.json")
+)
+def test_org_name_slug_conformance(test_case: dict[str, Any]) -> None:
     _run_test(test_case)
