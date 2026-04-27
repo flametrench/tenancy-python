@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flametrench-tenancy"
-version = "0.2.0rc3"
+version = "0.2.0rc4"
 description = "Tenancy primitives for Flametrench: organizations, memberships, and atomic invitation acceptance with the mem_/tup_ duality."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -31,6 +31,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "psycopg[binary]>=3.1",
+]
+postgres = [
+    "psycopg[binary]>=3.1",
 ]
 
 [project.urls]
