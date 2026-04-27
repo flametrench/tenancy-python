@@ -3,6 +3,11 @@
 All notable changes to `flametrench-tenancy` are recorded here.
 Spec-level changes live in [`spec/CHANGELOG.md`](https://github.com/flametrench/spec/blob/main/CHANGELOG.md).
 
+## [v0.2.0rc5] — 2026-04-27
+
+### Fixed
+- `PostgresTenancyStore.accept_invitation` (when materializing pre-tuples) and `list_tuples_for_object` now accept wire-format `object_id` values with app-defined prefixes (e.g. `proj_<32hex>`, `file_<32hex>`) in addition to bare 32-hex and canonical hyphenated UUIDs. Previously, an invitation carrying pre-tuples with wire-format prefixed IDs failed at acceptance time when binding to the UUID column. Closes [`spec#8`](https://github.com/flametrench/spec/issues/8).
+
 ## [v0.2.0rc4] — 2026-04-27
 
 ### Added

@@ -23,7 +23,14 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Sequence
 
-from flametrench_ids import decode as _decode, encode as _encode, generate as _generate
+import re as _re
+
+from flametrench_ids import (
+    decode as _decode,
+    decode_any as _decode_any,
+    encode as _encode,
+    generate as _generate,
+)
 
 from .errors import (
     AlreadyTerminalError,
@@ -84,6 +91,22 @@ def _default_clock() -> datetime:
 
 def _wire_to_uuid(wire_id: str) -> str:
     return _decode(wire_id).uuid
+
+
+_OBJECT_ID_WIRE_RE = _re.compile(r"^[a-z]{2,6}_[0-9a-f]{32}$")
+
+
+def _object_id_to_uuid(object_id: str) -> str:
+    """Decode an ``object_id`` to a Postgres-bindable UUID string.
+
+    See ``flametrench_authz.postgres._object_id_to_uuid`` for rationale
+    (spec#8). Wire-format prefixed IDs with non-registered prefixes
+    (e.g. ``proj_<hex>``) are decoded via ``decode_any``; raw 32-hex and
+    canonical hyphenated UUIDs pass through unchanged.
+    """
+    if _OBJECT_ID_WIRE_RE.match(object_id):
+        return _decode_any(object_id).uuid
+    return object_id
 
 
 def _validate_slug(slug: str) -> None:
@@ -960,7 +983,7 @@ class PostgresTenancyStore:
                         INSERT INTO tup (id, subject_type, subject_id, relation, object_type, object_id, created_at)
                         VALUES (%s, 'usr', %s, %s, %s, %s, %s)
                         """,
-                        (pt_tup_uuid, usr_uuid, relation, object_type, object_id, now),
+                        (pt_tup_uuid, usr_uuid, relation, object_type, _object_id_to_uuid(object_id), now),
                     )
                 materialized.append(Tuple(
                     subject_type="usr",
@@ -1058,7 +1081,7 @@ class PostgresTenancyStore:
     def list_tuples_for_object(
         self, object_type: str, object_id: str, *, relation: str | None = None,
     ) -> list[Tuple]:
-        params: list[Any] = [object_type, object_id]
+        params: list[Any] = [object_type, _object_id_to_uuid(object_id)]
         sql = f"SELECT {_TUP_COLS} FROM tup WHERE object_type = %s AND object_id = %s"
         if relation is not None:
             sql += " AND relation = %s"
