@@ -217,20 +217,21 @@ class PostgresTenancyStore:
 
     @contextmanager
     def _tx(self) -> Iterator[Any]:
-        """Run the wrapped block inside BEGIN/COMMIT.
+        """Run the wrapped block inside an explicit transaction.
 
-        psycopg3 begins a transaction implicitly; we explicitly commit
-        on success and rollback on any error.
+        Uses psycopg3's ``connection.transaction()`` context manager
+        rather than ``commit()``/``rollback()`` directly. This is
+        correct under BOTH ``autocommit=False`` (the default) AND
+        ``autocommit=True``: under autocommit=True, the bare
+        commit-on-success / rollback-on-error pattern would NOT hold
+        ``FOR UPDATE`` row locks across statements, breaking the
+        atomicity guarantees the spec requires for changeRole,
+        acceptInvitation, transferOwnership, and revokeOrg cascade.
+        ``transaction()`` issues an explicit ``BEGIN``/``COMMIT``
+        regardless of the connection's autocommit setting.
         """
-        try:
+        with self._conn.transaction():
             yield self._conn
-            self._conn.commit()
-        except Exception:
-            try:
-                self._conn.rollback()
-            except Exception:
-                pass
-            raise
 
     # ─── Organizations ───
 
