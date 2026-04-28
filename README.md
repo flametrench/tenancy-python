@@ -1,8 +1,10 @@
 # flametrench-tenancy
 
-Python SDK for the [Flametrench v0.1](https://github.com/flametrench/spec) tenancy specification: organizations, memberships (with the `mem_`/`tup_` duality), and atomic invitation acceptance.
+Python SDK for the [Flametrench](https://github.com/flametrench/spec) tenancy specification: organizations, memberships (with the `mem_`/`tup_` duality), and atomic invitation acceptance.
 
-The same behavioral guarantees that gate `@flametrench/tenancy` (Node) and `flametrench/tenancy` (PHP) hold here:
+**Status:** v0.2.0rc5 (release candidate). Includes the production-ready `PostgresTenancyStore` alongside the in-memory reference store.
+
+The same behavioral guarantees that gate `@flametrench/tenancy` (Node), `flametrench/tenancy` (PHP), and `dev.flametrench:tenancy` (Java) hold here:
 
 - **Revoke-and-re-add** on role changes, with a `replaces` chain for audit history.
 - **Sole-owner protection** on every path that could leave an org without an active owner (change_role, suspend_membership, self_leave).
