@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flametrench-tenancy"
-version = "0.2.0rc5"
+version = "0.2.0rc6"
 description = "Tenancy primitives for Flametrench: organizations, memberships, and atomic invitation acceptance with the mem_/tup_ duality."
 readme = "README.md"
 license = { text = "Apache-2.0" }

@@ -845,20 +845,23 @@ class PostgresTenancyStore:
             {"relation": pt.relation, "object_type": pt.object_type, "object_id": pt.object_id}
             for pt in (pre_tuples or [])
         ])
-        with self._conn.cursor() as cur:
-            cur.execute(
-                f"""
-                INSERT INTO inv (id, org_id, identifier, role, status, pre_tuples, invited_by, created_at, expires_at)
-                VALUES (%s, %s, %s, %s, 'pending', %s::jsonb, %s, %s, %s)
-                RETURNING {_INV_COLS}
-                """,
-                (
-                    inv_uuid, _wire_to_uuid(org_id), identifier, role.value,
-                    pre_payload, _wire_to_uuid(invited_by), now, expires_at,
-                ),
-            )
-            row = cur.fetchone()
-        self._conn.commit()
+        # ADR 0013: connection.transaction() opens BEGIN when standalone
+        # and SAVEPOINT when nested. psycopg3 inspects the connection's
+        # transaction_status to decide.
+        with self._conn.transaction():
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    INSERT INTO inv (id, org_id, identifier, role, status, pre_tuples, invited_by, created_at, expires_at)
+                    VALUES (%s, %s, %s, %s, 'pending', %s::jsonb, %s, %s, %s)
+                    RETURNING {_INV_COLS}
+                    """,
+                    (
+                        inv_uuid, _wire_to_uuid(org_id), identifier, role.value,
+                        pre_payload, _wire_to_uuid(invited_by), now, expires_at,
+                    ),
+                )
+                row = cur.fetchone()
         assert row is not None
         return _row_to_inv(row)
 

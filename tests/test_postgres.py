@@ -354,3 +354,38 @@ def test_unknown_ids_raise_not_found(store):
         store.get_membership(generate("mem"))
     with pytest.raises(NotFoundError):
         store.get_invitation(generate("inv"))
+
+
+# ─── Outer-transaction nesting (ADR 0013) ───
+
+def test_create_org_cooperates_with_outer_transaction(store, conn, alice):
+    nested = PostgresTenancyStore(conn)
+    with conn.transaction():
+        result = nested.create_org(alice, name="Outer", slug="outer")
+    fetched = store.get_org(result.org.id)
+    assert fetched.name == "Outer"
+
+
+def test_outer_rollback_undoes_inner_create_org(store, conn, alice):
+    nested = PostgresTenancyStore(conn)
+    org_id = None
+    try:
+        with conn.transaction():
+            result = nested.create_org(alice, slug="will-rollback")
+            org_id = result.org.id
+            raise RuntimeError("force rollback")
+    except RuntimeError:
+        pass
+    with pytest.raises(NotFoundError):
+        store.get_org(org_id)
+
+
+def test_outer_can_commit_after_first_rolls_back_savepoint(store, conn, alice, bob, carol):
+    # Seed a slug so the next createOrg with the same slug conflicts.
+    store.create_org(bob, slug="taken")
+    with conn.transaction():
+        nested = PostgresTenancyStore(conn)
+        with pytest.raises(OrgSlugConflictError):
+            nested.create_org(alice, slug="taken")
+        survivor = nested.create_org(carol, slug="survivor")
+    assert store.get_org(survivor.org.id).slug == "survivor"

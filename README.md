@@ -4,7 +4,7 @@
 
 Python SDK for the [Flametrench](https://github.com/flametrench/spec) tenancy specification: organizations, memberships (with the `mem_`/`tup_` duality), and atomic invitation acceptance.
 
-**Status:** v0.2.0rc5 (release candidate). Includes the production-ready `PostgresTenancyStore` alongside the in-memory reference store.
+**Status:** v0.2.0rc6 (release candidate). Includes the production-ready `PostgresTenancyStore` alongside the in-memory reference store. Per ADR 0013 the Postgres adapter cooperates with adopter-side outer transactions via savepoints when nested (psycopg3 `connection.transaction()` handles this automatically).
 
 The same behavioral guarantees that gate `@flametrench/tenancy` (Node), `flametrench/tenancy` (PHP), and `dev.flametrench:tenancy` (Java) hold here:
 
