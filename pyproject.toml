@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "flametrench-ids>=0.1.0",
+    "flametrench-ids>=0.2.0",
 ]
 
 [project.optional-dependencies]
