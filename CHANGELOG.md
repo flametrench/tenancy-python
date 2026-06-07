@@ -3,6 +3,11 @@
 All notable changes to `flametrench-tenancy` are recorded here.
 Spec-level changes live in [`spec/CHANGELOG.md`](https://github.com/flametrench/spec/blob/main/CHANGELOG.md).
 
+## [v0.4.0] — 2026-06-07
+
+### Added
+- `list_orgs` ([ADR 0025](https://github.com/flametrench/spec/blob/main/decisions/0025-list-orgs.md)) — paginated org enumeration (system-level). Both `InMemoryTenancyStore` and `PostgresTenancyStore` implement `list_orgs(*, cursor, limit, status)` with opaque id-ascending cursor, limit clamped to 200, and optional `status` filter. This is a v0.4 feature per the conformance fixture (`spec_version: 0.4.0`).
+
 ## [v0.3.0] — 2026-06-07
 
 ### Changed
