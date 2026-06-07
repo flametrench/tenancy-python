@@ -3,6 +3,11 @@
 All notable changes to `flametrench-tenancy` are recorded here.
 Spec-level changes live in [`spec/CHANGELOG.md`](https://github.com/flametrench/spec/blob/main/CHANGELOG.md).
 
+## [v0.4.1] — 2026-06-07
+
+### Fixed
+- `list_orgs` query filter parameter (now optional in the Postgres and in-memory stores). The v0.4.0 build shipped with the query parameter input omitted, causing 3 conformance cases to fail. v0.4.1 restores it.
+
 ## [v0.4.0] — 2026-06-07
 
 ### Added
