@@ -301,6 +301,32 @@ class InMemoryTenancyStore:
         self._orgs[org_id] = updated
         return updated
 
+    def list_orgs(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int = 50,
+        status: Status | None = None,
+    ) -> Page[Organization]:
+        limit = max(1, min(limit, 200))
+        matching = [
+            o for o in self._orgs.values()
+            if status is None or o.status == status
+        ]
+        matching.sort(key=lambda o: o.id)
+        if cursor is not None:
+            start = next(
+                (i for i, o in enumerate(matching) if o.id > cursor),
+                len(matching),
+            )
+        else:
+            start = 0
+        page = matching[start : start + limit]
+        next_cursor = (
+            page[-1].id if start + limit < len(matching) and page else None
+        )
+        return Page(data=page, next_cursor=next_cursor)
+
     # ─── Memberships ───
 
     def add_member(

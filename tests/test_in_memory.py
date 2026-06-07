@@ -372,3 +372,64 @@ class TestOrgLifecycle:
         store.reinstate_org(result.org.id)
         org = store.get_org(result.org.id)
         assert org.status == Status.ACTIVE
+
+
+class TestListOrgs:
+    """ADR 0025 — list_orgs: cursor-paginated, id-asc, optional status filter."""
+
+    def test_returns_all_orgs(self, store: InMemoryTenancyStore, alice: str) -> None:
+        r1 = store.create_org(alice)
+        r2 = store.create_org(alice)
+        page = store.list_orgs()
+        ids = {o.id for o in page.data}
+        assert r1.org.id in ids
+        assert r2.org.id in ids
+
+    def test_empty_store_returns_empty_page(self, store: InMemoryTenancyStore) -> None:
+        page = store.list_orgs()
+        assert page.data == []
+        assert page.next_cursor is None
+
+    def test_status_filter_active(self, store: InMemoryTenancyStore, alice: str) -> None:
+        r1 = store.create_org(alice)
+        r2 = store.create_org(alice)
+        store.suspend_org(r2.org.id)
+        page = store.list_orgs(status=Status.ACTIVE)
+        ids = {o.id for o in page.data}
+        assert r1.org.id in ids
+        assert r2.org.id not in ids
+
+    def test_status_filter_suspended(self, store: InMemoryTenancyStore, alice: str) -> None:
+        r1 = store.create_org(alice)
+        store.suspend_org(r1.org.id)
+        r2 = store.create_org(alice)
+        page = store.list_orgs(status=Status.SUSPENDED)
+        assert len(page.data) == 1
+        assert page.data[0].id == r1.org.id
+
+    def test_cursor_pagination(self, store: InMemoryTenancyStore, alice: str) -> None:
+        orgs = [store.create_org(alice).org for _ in range(5)]
+        orgs.sort(key=lambda o: o.id)
+        page1 = store.list_orgs(limit=2)
+        assert len(page1.data) == 2
+        assert page1.next_cursor is not None
+        page2 = store.list_orgs(limit=2, cursor=page1.next_cursor)
+        assert len(page2.data) == 2
+        page3 = store.list_orgs(limit=2, cursor=page2.next_cursor)
+        assert len(page3.data) == 1
+        assert page3.next_cursor is None
+        all_ids = [o.id for o in page1.data + page2.data + page3.data]
+        assert all_ids == sorted(all_ids)
+
+    def test_result_is_id_ascending(self, store: InMemoryTenancyStore, alice: str) -> None:
+        for _ in range(4):
+            store.create_org(alice)
+        page = store.list_orgs()
+        ids = [o.id for o in page.data]
+        assert ids == sorted(ids)
+
+    def test_limit_clamped_to_200(self, store: InMemoryTenancyStore, alice: str) -> None:
+        for _ in range(5):
+            store.create_org(alice)
+        page = store.list_orgs(limit=300)
+        assert len(page.data) == 5  # only 5 exist, but limit was silently clamped

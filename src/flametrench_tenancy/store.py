@@ -61,6 +61,22 @@ class TenancyStore(Protocol):
         forward partial inputs.
         """
         ...
+    def list_orgs(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int = 50,
+        status: "Status | None" = None,
+    ) -> "Page[Organization]":
+        """ADR 0025 — paginated org enumeration (system-level).
+
+        Adopters MUST gate the call site (sysadmin route or equivalent);
+        the SDK does not enforce authorization. Cursor and ordering match
+        ``list_members``: opaque ``id``-ascending cursor, ``limit`` max 200.
+
+        ``status`` filters by org status; omit for all statuses.
+        """
+        ...
     def suspend_org(self, org_id: str) -> Organization: ...
     def reinstate_org(self, org_id: str) -> Organization: ...
     def revoke_org(self, org_id: str) -> Organization: ...

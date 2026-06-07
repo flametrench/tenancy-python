@@ -329,6 +329,37 @@ def test_revoke_org_cascades(store, alice, bob):
 
 # ─── Listing ───
 
+def test_list_orgs_returns_all(store, alice, bob):
+    r1 = store.create_org(alice)
+    r2 = store.create_org(bob)
+    page = store.list_orgs()
+    ids = {o.id for o in page.data}
+    assert r1.org.id in ids
+    assert r2.org.id in ids
+
+
+def test_list_orgs_status_filter(store, alice, bob):
+    r1 = store.create_org(alice)
+    r2 = store.create_org(bob)
+    store.suspend_org(r2.org.id)
+    active = store.list_orgs(status=Status.ACTIVE)
+    assert all(o.status == Status.ACTIVE for o in active.data)
+    assert r1.org.id in {o.id for o in active.data}
+    assert r2.org.id not in {o.id for o in active.data}
+
+
+def test_list_orgs_cursor_pagination(store, alice):
+    orgs = [store.create_org(alice).org for _ in range(4)]
+    page1 = store.list_orgs(limit=2)
+    assert len(page1.data) == 2
+    assert page1.next_cursor is not None
+    page2 = store.list_orgs(limit=2, cursor=page1.next_cursor)
+    assert len(page2.data) == 2
+    assert page2.next_cursor is None
+    all_ids = [o.id for o in page1.data + page2.data]
+    assert all_ids == sorted(all_ids)
+
+
 def test_list_members_paginates(store, conn, alice, bob, carol):
     result = store.create_org(alice)
     extra1 = generate("usr")

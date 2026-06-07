@@ -446,6 +446,31 @@ class PostgresTenancyStore:
         assert updated is not None
         return _row_to_org(updated)
 
+    def list_orgs(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int = 50,
+        status: Status | None = None,
+    ) -> Page[Organization]:
+        limit = max(1, min(limit, 200))
+        sql = f"SELECT {_ORG_COLS} FROM org WHERE 1=1"
+        params: list[Any] = []
+        if cursor is not None:
+            sql += " AND id > %s"
+            params.append(_wire_to_uuid(cursor))
+        if status is not None:
+            sql += " AND status = %s"
+            params.append(status.value)
+        sql += " ORDER BY id LIMIT %s"
+        params.append(limit + 1)
+        with self._conn.cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+        orgs = [_row_to_org(r) for r in rows[:limit]]
+        next_cursor = orgs[-1].id if len(rows) > limit and orgs else None
+        return Page(data=orgs, next_cursor=next_cursor)
+
     # ─── Memberships ───
 
     def add_member(
