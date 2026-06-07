@@ -3,6 +3,12 @@
 All notable changes to `flametrench-tenancy` are recorded here.
 Spec-level changes live in [`spec/CHANGELOG.md`](https://github.com/flametrench/spec/blob/main/CHANGELOG.md).
 
+## [v0.3.0] — 2026-06-07
+
+### Changed
+- Bumped `flametrench-ids` dependency floor to `>=0.3.0` (required for the `pat` ID type introduced in ids v0.3.0).
+- Version aligned to `0.3.0` to track the cohort release.
+
 ## [v0.2.0rc5] — 2026-04-27
 
 ### Fixed
