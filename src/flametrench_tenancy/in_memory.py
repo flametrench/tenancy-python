@@ -307,12 +307,20 @@ class InMemoryTenancyStore:
         cursor: str | None = None,
         limit: int = 50,
         status: Status | None = None,
+        query: str | None = None,
     ) -> Page[Organization]:
         limit = max(1, min(limit, 200))
         matching = [
             o for o in self._orgs.values()
             if status is None or o.status == status
         ]
+        if query is not None:
+            q = query.lower()
+            matching = [
+                o for o in matching
+                if (o.name is not None and q in o.name.lower())
+                or (o.slug is not None and q in o.slug.lower())
+            ]
         matching.sort(key=lambda o: o.id)
         if cursor is not None:
             start = next(

@@ -452,6 +452,7 @@ class PostgresTenancyStore:
         cursor: str | None = None,
         limit: int = 50,
         status: Status | None = None,
+        query: str | None = None,
     ) -> Page[Organization]:
         limit = max(1, min(limit, 200))
         sql = f"SELECT {_ORG_COLS} FROM org WHERE 1=1"
@@ -462,6 +463,10 @@ class PostgresTenancyStore:
         if status is not None:
             sql += " AND status = %s"
             params.append(status.value)
+        if query is not None:
+            sql += " AND (LOWER(name) LIKE %s OR LOWER(slug) LIKE %s)"
+            like = f"%{query.lower()}%"
+            params.extend([like, like])
         sql += " ORDER BY id LIMIT %s"
         params.append(limit + 1)
         with self._conn.cursor() as cur:

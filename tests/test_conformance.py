@@ -29,6 +29,7 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -50,6 +51,7 @@ from flametrench_tenancy import (
     Role,
     RoleHierarchyError,
     SoleOwnerError,
+    Status,
     TenancyError,
 )
 
@@ -222,6 +224,19 @@ def _invoke_op(
     if op == "revoke_org":
         return store.revoke_org(args["org_id"])
 
+    if op == "list_orgs":
+        kwargs: dict[str, Any] = {}
+        if "cursor" in args:
+            kwargs["cursor"] = args["cursor"]
+        if "limit" in args:
+            kwargs["limit"] = args["limit"]
+        if "status" in args:
+            kwargs["status"] = Status(args["status"])
+        if "query" in args:
+            kwargs["query"] = args["query"]
+        page = store.list_orgs(**kwargs)
+        return SimpleNamespace(page=page)
+
     # Harness-only assertion pseudo-ops.
     if op == "assert_subject_relations":
         tuples = store.list_tuples_for_subject(
@@ -252,6 +267,23 @@ def _invoke_op(
     raise RuntimeError(f"Unknown fixture op: {op}")
 
 
+def _assert_list_result(result: Any, spec: dict[str, Any]) -> None:
+    page = result.page
+    actual_ids = [o.id for o in page.data]
+    if "data_ids_in_order" in spec:
+        assert actual_ids == spec["data_ids_in_order"], (
+            f"list result: expected ids in order {spec['data_ids_in_order']}, got {actual_ids}"
+        )
+    if "data_ids_unordered" in spec:
+        assert set(actual_ids) == set(spec["data_ids_unordered"]), (
+            f"list result: expected ids (unordered) {set(spec['data_ids_unordered'])}, got {set(actual_ids)}"
+        )
+    if "next_cursor" in spec:
+        assert page.next_cursor == spec["next_cursor"], (
+            f"list result: expected next_cursor={spec['next_cursor']!r}, got {page.next_cursor!r}"
+        )
+
+
 def _run_test(test: dict[str, Any]) -> None:
     store = InMemoryTenancyStore()
     variables: dict[str, Any] = {
@@ -270,6 +302,10 @@ def _run_test(test: dict[str, Any]) -> None:
             return  # error step terminates the test
 
         result = _invoke_op(store, op, resolved_input)
+
+        if expected and "result" in expected:
+            resolved_spec = _resolve(expected["result"], variables)
+            _assert_list_result(result, resolved_spec)
 
         captures = step.get("captures")
         if captures:
@@ -343,4 +379,14 @@ def test_accept_invitation_binding_conformance(test_case: dict[str, Any]) -> Non
     "test_case", _collect_tests("tenancy/org-name-slug.json")
 )
 def test_org_name_slug_conformance(test_case: dict[str, Any]) -> None:
+    _run_test(test_case)
+
+
+# ─── tenancy.list_orgs (ADR 0025) ───
+
+
+@pytest.mark.parametrize(
+    "test_case", _collect_tests("tenancy/list-orgs.json")
+)
+def test_list_orgs_conformance(test_case: dict[str, Any]) -> None:
     _run_test(test_case)

@@ -67,6 +67,7 @@ class TenancyStore(Protocol):
         cursor: str | None = None,
         limit: int = 50,
         status: "Status | None" = None,
+        query: str | None = None,
     ) -> "Page[Organization]":
         """ADR 0025 — paginated org enumeration (system-level).
 
@@ -75,6 +76,7 @@ class TenancyStore(Protocol):
         ``list_members``: opaque ``id``-ascending cursor, ``limit`` max 200.
 
         ``status`` filters by org status; omit for all statuses.
+        ``query`` is a case-insensitive substring match over ``name`` and ``slug``.
         """
         ...
     def suspend_org(self, org_id: str) -> Organization: ...

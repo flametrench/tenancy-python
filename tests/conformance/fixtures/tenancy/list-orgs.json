@@ -1,0 +1,155 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.4.0",
+  "capability": "tenancy",
+  "operation": "list_orgs",
+  "conformance_level": "MUST",
+  "spec_section": "decisions/0025-list-orgs.md",
+  "description": "v0.4 (ADR 0025) adds the cross-org enumeration primitive to TenancyStore, landing the listOrgs reference ADR 0015 already assumed. Mirrors identity/list-users.json: basic id-ordered enumeration, status filter (active/suspended/revoked), case-insensitive query substring over name+slug, multi-page cursor round-trip, and the empty-install case. createOrg requires a creator (it mints the owner membership), so each test seeds a synthetic 'actor' user. Closes spec#25.",
+  "tests": [
+    {
+      "id": "list_orgs.basic_enumeration_id_ordered",
+      "description": "list_orgs with no filters returns all orgs in id ASC order. UUIDv7 makes this approximately creation-time-ordered.",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o1": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o2": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o3": "org.id" } },
+        {
+          "op": "list_orgs",
+          "input": {},
+          "expected": {
+            "result": {
+              "data_ids_in_order": ["{o1}", "{o2}", "{o3}"],
+              "next_cursor": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.status_filter_active",
+      "description": "Filtering by status returns only matching orgs. Suspended orgs are excluded when status='active' — the property cloud ADR 0046's fan-out depends on.",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "active_id": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "suspended_id": "org.id" } },
+        { "op": "suspend_org", "input": { "org_id": "{suspended_id}" } },
+        {
+          "op": "list_orgs",
+          "input": { "status": "active" },
+          "expected": { "result": { "data_ids_in_order": ["{active_id}"] } }
+        },
+        {
+          "op": "list_orgs",
+          "input": { "status": "suspended" },
+          "expected": { "result": { "data_ids_in_order": ["{suspended_id}"] } }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.status_filter_revoked",
+      "description": "Revoked orgs appear under status='revoked' but are excluded by the active filter.",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "live_id": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "dead_id": "org.id" } },
+        { "op": "revoke_org", "input": { "org_id": "{dead_id}" } },
+        {
+          "op": "list_orgs",
+          "input": { "status": "revoked" },
+          "expected": { "result": { "data_ids_in_order": ["{dead_id}"] } }
+        },
+        {
+          "op": "list_orgs",
+          "input": { "status": "active" },
+          "expected": { "result": { "data_ids_in_order": ["{live_id}"] } }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.query_substring_over_name_and_slug",
+      "description": "query is a case-insensitive substring filter over org name OR slug (ADR 0011 fields).",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}", "name": "Acme Inc", "slug": "acme" }, "captures": { "acme_id": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}", "name": "Acme Labs", "slug": "acme-labs" }, "captures": { "labs_id": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}", "name": "Globex", "slug": "globex" }, "captures": { "globex_id": "org.id" } },
+        {
+          "op": "list_orgs",
+          "input": { "query": "acme" },
+          "expected": { "result": { "data_ids_unordered": ["{acme_id}", "{labs_id}"] } }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.query_case_insensitive_and_matches_slug",
+      "description": "query is case-insensitive and matches the slug arm — `GLOBEX` matches slug `globex`.",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}", "name": "Globex", "slug": "globex" }, "captures": { "globex_id": "org.id" } },
+        {
+          "op": "list_orgs",
+          "input": { "query": "GLOBEX" },
+          "expected": { "result": { "data_ids_unordered": ["{globex_id}"] } }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.query_no_name_or_slug_never_matches",
+      "description": "An org with both name and slug null never matches a non-empty query.",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "anon_id": "org.id" } },
+        {
+          "op": "list_orgs",
+          "input": { "query": "anything" },
+          "expected": { "result": { "data_ids_unordered": [] } }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.cursor_walks_pages",
+      "description": "Calling list_orgs with the next_cursor returns the next page; the final page returns next_cursor=null.",
+      "users": ["actor"],
+      "steps": [
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o1": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o2": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o3": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o4": "org.id" } },
+        { "op": "create_org", "input": { "creator": "{actor}" }, "captures": { "o5": "org.id" } },
+        {
+          "op": "list_orgs",
+          "input": { "limit": 2 },
+          "captures": { "page1_cursor": "page.next_cursor" },
+          "expected": { "result": { "data_ids_in_order": ["{o1}", "{o2}"] } }
+        },
+        {
+          "op": "list_orgs",
+          "input": { "cursor": "{page1_cursor}", "limit": 2 },
+          "captures": { "page2_cursor": "page.next_cursor" },
+          "expected": { "result": { "data_ids_in_order": ["{o3}", "{o4}"] } }
+        },
+        {
+          "op": "list_orgs",
+          "input": { "cursor": "{page2_cursor}", "limit": 2 },
+          "expected": {
+            "result": { "data_ids_in_order": ["{o5}"], "next_cursor": null }
+          }
+        }
+      ]
+    },
+    {
+      "id": "list_orgs.empty_install",
+      "description": "list_orgs on an install with no orgs returns an empty page and null cursor. (The seeded actor owns no orgs; listOrgs enumerates orgs, not users.)",
+      "users": ["actor"],
+      "steps": [
+        {
+          "op": "list_orgs",
+          "input": {},
+          "expected": { "result": { "data_ids_in_order": [], "next_cursor": null } }
+        }
+      ]
+    }
+  ]
+}
