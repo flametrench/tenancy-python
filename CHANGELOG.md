@@ -6,13 +6,14 @@ Spec-level changes live in [`spec/CHANGELOG.md`](https://github.com/flametrench/
 ## [v0.4.1] — 2026-06-07
 
 ### Fixed
-- `list_orgs` query filter parameter (now optional in the Postgres and in-memory stores). The v0.4.0 build shipped with the query parameter input omitted, causing 3 conformance cases to fail. v0.4.1 restores it.
+- `list_orgs` query filter parameter was omitted from the v0.4.0 build, causing 3 conformance cases to fail. v0.4.1 restores the parameter and passes all 8 conformance cases.
 
-## [v0.4.0] — 2026-06-07
+## [v0.4.0] — 2026-06-07 (yanked)
 
 ### Added
 - `list_orgs` ([ADR 0025](https://github.com/flametrench/spec/blob/main/decisions/0025-list-orgs.md)) — paginated org enumeration (system-level). Both `InMemoryTenancyStore` and `PostgresTenancyStore` implement `list_orgs(*, cursor, limit, status)` with opaque id-ascending cursor, limit clamped to 200, and optional `status` filter. This is a v0.4 feature per the conformance fixture (`spec_version: 0.4.0`).
 
+**Note:** v0.4.0 was yanked from PyPI due to missing the query filter parameter; use v0.4.1 instead.
 ## [v0.3.0] — 2026-06-07
 
 ### Changed
