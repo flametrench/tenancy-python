@@ -719,6 +719,19 @@ class InMemoryTenancyStore:
 
     def revoke_invitation(self, inv_id: str, admin_usr_id: str) -> Invitation:
         inv = self.get_invitation(inv_id)
+        # Subject to admin authorization on the invitation's own org
+        # (docs/tenancy.md §Invitations; ADR 0003: the actor is an admin
+        # of the org). Checked before the status so a caller without
+        # authority learns nothing about the invitation's state.
+        admin = self._find_active_membership(admin_usr_id, inv.org_id)
+        if admin is None:
+            raise ForbiddenError(
+                f"User {admin_usr_id} has no active membership in the invitation's org",
+            )
+        if admin.role not in (Role.OWNER, Role.ADMIN):
+            raise ForbiddenError(
+                f"Role {admin.role.value} is not permitted to revoke invitations",
+            )
         if inv.status != InvitationStatus.PENDING:
             raise InvitationNotPendingError(
                 f"Invitation {inv_id} is {inv.status.value}, not pending",

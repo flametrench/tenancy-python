@@ -382,6 +382,16 @@ def test_org_name_slug_conformance(test_case: dict[str, Any]) -> None:
     _run_test(test_case)
 
 
+# ─── tenancy.revoke_invitation — admin authorization ───
+
+
+@pytest.mark.parametrize(
+    "test_case", _collect_tests("tenancy/revoke-invitation-authz.json")
+)
+def test_revoke_invitation_authz_conformance(test_case: dict[str, Any]) -> None:
+    _run_test(test_case)
+
+
 # ─── tenancy.list_orgs (ADR 0025) ───
 
 
