@@ -1,0 +1,349 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "revoke_invitation",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#operations-1",
+  "description": "`revokeInvitation(inv_id, admin_usr_id)` is 'subject to admin authorization on the target org' (docs/tenancy.md \u00a7Invitations/Operations); ADR 0003 \u00a7Actors per transition names the actor for pending\u2192revoked as 'Admin of the org' with terminal_by = the admin's usr_id. Per the adminRemove precedent (same doc, same 'subject to authorization' phrasing, enforced in-SDK in all five families, fixture admin_remove.member_attempts_remove.forbidden) the check is the SDK's, and a refused caller gets `ForbiddenError` \u2014 the error name is pinned by that precedent (tenancy/admin-remove.json `admin_remove.member_attempts_remove.forbidden`), not PROVISIONAL. Asserts ONLY accepted text: non-admin refused, admin of a DIFFERENT org refused, org owner/admin succeed with terminal_by recorded. The suspended-MEMBERSHIP arm follows from accepted text: suspending a membership deletes its `tup_` (docs/tenancy.md \u00a7Memberships), so the adminRemove-style `check(admin, [owner, admin], org)` fails. NOT asserted (pending a spec change): the `revokeInvitationAsSystem` path. LIMITATION: the state-machine format ends a test at the first expected error, so these vectors cannot assert that a refused call left the invitation `pending`; 'no state change on refusal' is normative (pending spec change) but not yet fixture-expressible pending a fixture-format extension.",
+  "tests": [
+    {
+      "id": "revoke_invitation.non_admin_member_forbidden",
+      "description": "A plain member of the invitation's org cannot revoke it (ForbiddenError).",
+      "users": [
+        "alice",
+        "bob"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_id": "org.id"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{bob}",
+            "role": "member"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "admin_usr_id": "{bob}"
+          },
+          "expected": {
+            "error": "ForbiddenError"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revoke_invitation.admin_of_other_org_forbidden",
+      "description": "Being owner/admin of ANOTHER org does not authorize revoking this org's invitation.",
+      "users": [
+        "alice",
+        "mallory"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_id": "org.id"
+          }
+        },
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{mallory}"
+          },
+          "captures": {
+            "other_org": "org.id"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "admin_usr_id": "{mallory}"
+          },
+          "expected": {
+            "error": "ForbiddenError"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revoke_invitation.owner_succeeds",
+      "description": "Known positive: the org owner revokes the invitation; status becomes revoked and terminal_by is the owner.",
+      "users": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_id": "org.id"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "admin_usr_id": "{alice}"
+          },
+          "captures": {
+            "terminal_by": "terminal_by"
+          }
+        },
+        {
+          "op": "assert_invitation_status",
+          "input": {
+            "inv_id": "{inv_id}",
+            "expected_status": "revoked"
+          }
+        },
+        {
+          "op": "assert_equal",
+          "input": {
+            "actual": "{terminal_by}",
+            "expected": "{alice}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revoke_invitation.admin_succeeds",
+      "description": "An admin (not owner) of the invitation's org revokes it; terminal_by is that admin.",
+      "users": [
+        "alice",
+        "carol"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_id": "org.id"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{carol}",
+            "role": "admin"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "admin_usr_id": "{carol}"
+          },
+          "captures": {
+            "terminal_by": "terminal_by"
+          }
+        },
+        {
+          "op": "assert_invitation_status",
+          "input": {
+            "inv_id": "{inv_id}",
+            "expected_status": "revoked"
+          }
+        },
+        {
+          "op": "assert_equal",
+          "input": {
+            "actual": "{terminal_by}",
+            "expected": "{carol}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revoke_invitation.admin_elsewhere_member_here_forbidden",
+      "description": "Caller is ADMIN of org A and only a plain MEMBER of org B; an invitation of org B cannot be revoked by them. Pins 'the invitation's own org', not 'any org the caller administers'.",
+      "users": [
+        "alice",
+        "dave"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{dave}"
+          },
+          "captures": {
+            "org_a": "org.id"
+          }
+        },
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_b": "org.id"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_b}",
+            "usr_id": "{dave}",
+            "role": "member"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_b}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "admin_usr_id": "{dave}"
+          },
+          "expected": {
+            "error": "ForbiddenError"
+          }
+        }
+      ]
+    },
+    {
+      "id": "revoke_invitation.suspended_admin_membership_forbidden",
+      "description": "An admin whose MEMBERSHIP in the invitation's org is suspended cannot revoke (suspension deletes the membership tuple; only an active membership authorizes).",
+      "users": [
+        "alice",
+        "carol"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_id": "org.id"
+          }
+        },
+        {
+          "op": "add_member",
+          "input": {
+            "org_id": "{org_id}",
+            "usr_id": "{carol}",
+            "role": "admin"
+          },
+          "captures": {
+            "carol_mem": "id"
+          }
+        },
+        {
+          "op": "suspend_membership",
+          "input": {
+            "mem_id": "{carol_mem}"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation",
+          "input": {
+            "inv_id": "{inv_id}",
+            "admin_usr_id": "{carol}"
+          },
+          "expected": {
+            "error": "ForbiddenError"
+          }
+        }
+      ]
+    }
+  ]
+}

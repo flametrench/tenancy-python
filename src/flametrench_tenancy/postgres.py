@@ -1075,12 +1075,32 @@ class PostgresTenancyStore:
         with self._tx() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, status FROM inv WHERE id = %s FOR UPDATE",
+                    "SELECT id, status, org_id FROM inv WHERE id = %s FOR UPDATE",
                     (_wire_to_uuid(inv_id),),
                 )
                 row = cur.fetchone()
             if row is None:
                 raise NotFoundError(f"Invitation {inv_id} not found")
+            # Subject to admin authorization on the invitation's own org
+            # (docs/tenancy.md §Invitations; ADR 0003: the actor is an admin
+            # of the org). Checked before the status so a caller without
+            # authority learns nothing about the invitation's state.
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT role FROM mem "
+                    "WHERE usr_id = %s AND org_id = %s AND status = 'active' "
+                    "FOR SHARE",
+                    (_wire_to_uuid(admin_usr_id), row[2]),
+                )
+                admin = cur.fetchone()
+            if admin is None:
+                raise ForbiddenError(
+                    f"User {admin_usr_id} has no active membership in the invitation's org",
+                )
+            if admin[0] not in ("owner", "admin"):
+                raise ForbiddenError(
+                    f"Role {admin[0]} is not permitted to revoke invitations",
+                )
             if row[1] != InvitationStatus.PENDING.value:
                 raise InvitationNotPendingError(f"Invitation {inv_id} is {row[1]}")
             now = self._now()
