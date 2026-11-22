@@ -1117,6 +1117,33 @@ class PostgresTenancyStore:
         assert updated is not None
         return _row_to_inv(updated)
 
+    def revoke_invitation_as_system(self, inv_id: str) -> Invitation:
+        # ADR 0028 rules 6-10. No authorization: the call-site gate is
+        # the adopter's (see TenancyStore.revoke_invitation_as_system).
+        with self._tx() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, status FROM inv WHERE id = %s FOR UPDATE",
+                    (_wire_to_uuid(inv_id),),
+                )
+                row = cur.fetchone()
+            if row is None:
+                raise NotFoundError(f"Invitation {inv_id} not found")
+            if row[1] != InvitationStatus.PENDING.value:
+                raise InvitationNotPendingError(f"Invitation {inv_id} is {row[1]}")
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    UPDATE inv SET status = 'revoked', terminal_at = %s, terminal_by = NULL
+                    WHERE id = %s
+                    RETURNING {_INV_COLS}
+                    """,
+                    (self._now(), row[0]),
+                )
+                updated = cur.fetchone()
+        assert updated is not None
+        return _row_to_inv(updated)
+
     # ─── Tuple accessors ───
 
     def list_tuples_for_subject(

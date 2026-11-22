@@ -215,6 +215,9 @@ def _invoke_op(
     if op == "revoke_invitation":
         return store.revoke_invitation(args["inv_id"], args["admin_usr_id"])
 
+    if op == "revoke_invitation_as_system":
+        return store.revoke_invitation_as_system(args["inv_id"])
+
     if op == "suspend_org":
         return store.suspend_org(args["org_id"])
 
@@ -389,6 +392,16 @@ def test_org_name_slug_conformance(test_case: dict[str, Any]) -> None:
     "test_case", _collect_tests("tenancy/revoke-invitation-authz.json")
 )
 def test_revoke_invitation_authz_conformance(test_case: dict[str, Any]) -> None:
+    _run_test(test_case)
+
+
+# ─── tenancy.revoke_invitation_as_system (ADR 0028) ───
+
+
+@pytest.mark.parametrize(
+    "test_case", _collect_tests("tenancy/revoke-invitation-as-system.json")
+)
+def test_revoke_invitation_as_system_conformance(test_case: dict[str, Any]) -> None:
     _run_test(test_case)
 
 

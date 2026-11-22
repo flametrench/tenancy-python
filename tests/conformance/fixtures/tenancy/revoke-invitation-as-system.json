@@ -1,0 +1,65 @@
+{
+  "$schema": "../../fixture.schema.json",
+  "spec_version": "0.1.0",
+  "capability": "tenancy",
+  "operation": "revoke_invitation_as_system",
+  "conformance_level": "MUST",
+  "spec_section": "docs/tenancy.md#operations-2",
+  "description": "`revokeInvitationAsSystem(inv_id)` (ADR 0028 rules 6-10 and the ADR 0003 actor-table row `pending → revoked` (system), `terminal_by` NULL): a system revocation takes a pending invitation to `revoked` with no actor and no SDK authorization check. The operation takes no caller id. Its call-site gate to system callers is an adopter obligation that no fixture can check (ADR 0028 rule 7).",
+  "tests": [
+    {
+      "id": "revoke_invitation_as_system.pending_to_revoked_terminal_by_null",
+      "description": "A pending invitation revoked by the system path becomes `revoked` (not `expired`) with `terminal_by` NULL.",
+      "users": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "op": "create_org",
+          "input": {
+            "creator": "{alice}"
+          },
+          "captures": {
+            "org_id": "org.id"
+          }
+        },
+        {
+          "op": "create_invitation",
+          "input": {
+            "org_id": "{org_id}",
+            "identifier": "invitee@example.com",
+            "role": "member",
+            "invited_by": "{alice}",
+            "ttl_seconds": 86400
+          },
+          "captures": {
+            "inv_id": "id"
+          }
+        },
+        {
+          "op": "revoke_invitation_as_system",
+          "input": {
+            "inv_id": "{inv_id}"
+          },
+          "captures": {
+            "terminal_by": "terminal_by"
+          }
+        },
+        {
+          "op": "assert_invitation_status",
+          "input": {
+            "inv_id": "{inv_id}",
+            "expected_status": "revoked"
+          }
+        },
+        {
+          "op": "assert_equal",
+          "input": {
+            "actual": "{terminal_by}",
+            "expected": null
+          }
+        }
+      ]
+    }
+  ]
+}
