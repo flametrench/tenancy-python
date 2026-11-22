@@ -167,6 +167,25 @@ class TenancyStore(Protocol):
 
     def revoke_invitation(self, inv_id: str, admin_usr_id: str) -> Invitation: ...
 
+    def revoke_invitation_as_system(self, inv_id: str) -> Invitation:
+        """ADR 0028 — revoke a pending invitation with no actor (system path).
+
+        Sets ``status = revoked``, ``terminal_at = now`` and
+        ``terminal_by = None``. Performs no authorization check.
+
+        Adopters MUST gate the call site to server-side system or
+        automation callers. It MUST NOT be reachable from any user-facing
+        or tenant-scoped route. The SDK cannot enforce this gate, and
+        conformance cannot detect a missing one. User-initiated revocation
+        uses :meth:`revoke_invitation`, which checks the caller is an
+        owner or admin of the invitation's org.
+
+        Raises :class:`NotFoundError` for an unknown ``inv_id`` and
+        :class:`InvitationNotPendingError` if the invitation is not
+        pending.
+        """
+        ...
+
     # ─── Tuple accessors ───
     def list_tuples_for_subject(
         self, subject_type: str, subject_id: str

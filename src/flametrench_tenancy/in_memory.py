@@ -744,6 +744,22 @@ class InMemoryTenancyStore:
         self._invitations[inv.id] = updated
         return updated
 
+    def revoke_invitation_as_system(self, inv_id: str) -> Invitation:
+        # ADR 0028 rules 6-10. No authorization: the call-site gate is
+        # the adopter's (see TenancyStore.revoke_invitation_as_system).
+        inv = self.get_invitation(inv_id)
+        if inv.status != InvitationStatus.PENDING:
+            raise InvitationNotPendingError(
+                f"Invitation {inv_id} is {inv.status.value}, not pending",
+            )
+        updated = inv.transition_terminal(
+            status=InvitationStatus.REVOKED,
+            at=self._now(),
+            by=None,
+        )
+        self._invitations[inv.id] = updated
+        return updated
+
     # ─── Tuple accessors ───
 
     def list_tuples_for_subject(
