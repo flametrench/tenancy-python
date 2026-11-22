@@ -7,6 +7,7 @@ Spec-level changes live in [`spec/CHANGELOG.md`](https://github.com/flametrench/
 
 ### Changed
 - **Behaviour change:** `revoke_invitation(inv_id, admin_usr_id)` now raises `ForbiddenError` unless the caller holds an **active** `owner` or `admin` membership in the invitation's org (docs/tenancy.md §Invitations; ADR 0003). A refused call leaves the invitation unchanged. Callers that revoked invitations in other orgs will now get `Forbidden`.
+- **Note:** cleanup and automated callers (expiry and clean-up jobs) use `revokeInvitationAsSystem`, for server-side callers only. That method is added by the system-path change and is in this release only once that PR merges.
 
 ### Fixed
 - Authorization is checked before the pending-status check, so a caller without authority cannot learn the invitation's state.
